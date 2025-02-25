@@ -1,0 +1,3 @@
+---
+build_dir: "/build"
+letsencrypt_dir: "/etc/letsencrypt/live/"

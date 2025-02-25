@@ -1,0 +1,10 @@
+SecRuleEngine On
+SecRequestBodyAccess On
+SecAuditLogFormat JSON
+SecAuditLog /var/log/nginx/modsec_audit.log
+SecAuditLogParts ABCDEFGHIJKZ
+SecAuditEngine RelevantOnly
+include /etc/modsecurity/crs/crs-setup.conf
+include /etc/modsecurity/crs/REQUEST-900-EXCLUSION-RULES-BEFORE-CRS.conf
+include /usr/share/modsecurity-crs/rules/*.conf
+include /etc/modsecurity/crs/RESPONSE-999-EXCLUSION-RULES-AFTER-CRS.conf

@@ -1,0 +1,25 @@
+---
+dependencies: [letsencrypt]
+
+galaxy_info:
+  role_name: nginx
+  author: ronnyforberger
+  description: A role to deploy NginX
+  company: ""
+  license: "license (BSD, MIT)"
+  min_ansible_version: 2.4
+  platforms:
+    - name: EL
+      versions:
+        - 7
+        - 8
+        - 9
+    - name: Ubuntu
+      versions:
+        - all
+    - name: Debian
+      versions:
+        - all
+    - name: Archlinux
+      versions:
+        - all

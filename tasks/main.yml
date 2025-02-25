@@ -1,0 +1,139 @@
+---
+
+- name: Install nginx
+  ansible.builtin.apt:
+    name="nginx-full"
+    state=latest
+  when: ansible_os_family == 'Debian'
+
+##################################################################################
+
+- set_fact:
+    group='root'
+  when: ansible_system == 'Linux'
+
+- name: Create *-available directories
+  ansible.builtin.file:
+    path={{ item }}
+    state=directory
+    mode=0755
+    owner=root
+    group={{ group }}
+  loop:
+    - /etc/nginx/sites-available
+    - /etc/nginx/sites-enabled
+  notify:
+    - Restart nginx
+
+- name: Create ssl directory
+  ansible.builtin.file:
+    path="/etc/nginx/ssl"
+    state=directory
+    mode=0755
+    owner=root
+    group={{ group }}
+  notify:
+    - Restart nginx
+
+- name: Create vhosts directory
+  ansible.builtin.file:
+    path: "/var/www/vhosts"
+    state: directory
+  when: not item.target_servers is defined
+  notify:
+    - Restart nginx
+  loop: "{{ nginx.virtual_hosts|flatten(levels=1) }}"
+
+- name: Create vhost directory
+  ansible.builtin.file:
+    path: "/var/www/vhosts/{{ item.name }}"
+    state: directory
+  notify:
+    - Restart nginx
+  loop: "{{ nginx.virtual_hosts|flatten(levels=1) }}"
+  when: not item.target_servers is defined
+
+- name: Deploy virtual host
+  ansible.builtin.template:
+    src=nginx_virtual_host.conf.j2
+    dest="/etc/nginx/sites-available/{{ item.name }}.conf"
+    mode=0644
+    owner=root
+    group={{ group }}
+  notify:
+    - Restart nginx
+  loop: "{{ nginx.virtual_hosts|flatten(levels=1) }}"
+
+- name: Enable virtual host
+  ansible.builtin.file:
+    src="/etc/nginx/sites-available/{{ item.name }}.conf"
+    dest="/etc/nginx/sites-enabled/{{ item.name }}.conf"
+    state=link
+    group={{ group }}
+  loop: "{{ nginx.virtual_hosts|flatten(levels=1) }}"
+  notify:
+    - Restart nginx
+
+- name: Disable default virtual host
+  ansible.builtin.file:
+    path: "/etc/nginx/sites-enabled/default"
+    state: absent
+  notify:
+    - Restart nginx
+
+- name: Install mod_security package
+  ansible.builtin.apt:
+    name: "libnginx-mod-http-modsecurity"
+    state: present
+  when: nginx.mod_security == True
+
+- name: Create modsec dir
+  ansible.builtin.file:
+    name="/etc/nginx/modsec"
+    state=directory
+  when: nginx.mod_security == True
+
+- name: Create modsec_include.load
+  ansible.builtin.template:
+    src=modsec_include.load.j2
+    dest="/etc/nginx/modsec/modsec_include.load"
+  when: nginx.mod_security == True
+
+- include_tasks: "mod_security_compile.yml"
+  when: nginx.mod_security == True and nginx.mod_security_compile == True
+
+- name: Install client certificate
+  ansible.builtin.copy:
+    src={{ item.client_certificate }}
+    dest=/etc/nginx/ssl/{{ item.client_certificate }}
+  loop: "{{ nginx.virtual_hosts|flatten(levels=1) }}"
+  when: item.request_client_certificate == 'On'
+  notify:
+    - Restart nginx
+
+- name: Write stream ssh proxy
+  ansible.builtin.template:
+    dest: "/etc/nginx/modules-available/ssh-proxy.conf"
+    src: "nginx_stream_ssh.conf.j2"
+
+- name: a2enmod stream ssh proxy
+  ansible.builtin.file:
+    src: "/etc/nginx/modules-available/ssh-proxy.conf"
+    path: "/etc/nginx/modules-enabled/ssh-proxy.conf"
+    state: link
+  notify:
+    - Restart nginx
+
+- name: Install php-fpm
+  ansible.builtin.apt:
+    name: "php-fpm"
+    state: present
+  when: item.mod_php == 'On'
+  loop: "{{ nginx.virtual_hosts|flatten(levels=1) }}"
+
+
+
+
+
+
+

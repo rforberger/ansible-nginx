@@ -1,0 +1,214 @@
+---
+
+#- name: Install modsecurity for NginX
+#  ansible.builtin.apt:
+#    name: libnginx-mod-http-modsecurity
+#    state: present
+
+###############################################################################
+- name: check if modsecurity so exists
+  ansible.builtin.stat:
+    path: /usr/share/nginx/modules/ngx_http_modsecurity_module.so
+  register: modsec
+
+- name: check if cookieflag so exists
+  ansible.builtin.stat:
+    path: /usr/share/nginx/modules/ngx_http_cookie_flag_filter_module.so
+  register: cookieflag
+
+
+
+- name: Install prereq. packages
+  ansible.builtin.apt:
+    name="{{ packages }}"
+    state=latest
+  vars:
+    packages:
+      - libmodsecurity3
+      - libmodsecurity-dev
+      - libpcre3-dev
+      - gcc
+      - make
+      - git
+      - dpkg-dev
+      - libssl-dev
+      - zlib1g-dev
+      - modsecurity-crs
+      - libxslt1-dev
+      - libgd-dev
+      - libgeoip-dev
+      - libperl-dev
+  when: modsec.stat.exists == False
+
+- name: Clone ModSecurityNginx repo
+  ansible.builtin.git:
+    repo=https://github.com/SpiderLabs/ModSecurity-nginx
+    dest=/tmp/ModSecurity-nginx
+    version="v1.0.3"
+  when: modsec.stat.exists == False
+
+- name: Clone ModSecurity repo
+  ansible.builtin.git:
+    repo=https://github.com/SpiderLabs/ModSecurity
+    dest=/tmp/ModSecurity
+    version="v3.0.8"
+  when: modsec.stat.exists == False
+
+- name: Clone SetCookieFlag repo
+  ansible.builtin.git:
+    repo=https://github.com/AirisX/nginx_cookie_flag_module
+    dest=/tmp/SetCookieFlag-nginx
+    version="v1.1.0"
+  when: cookieflag.stat.exists == False
+
+- name: Create build directory
+  ansible.builtin.file:
+    path: "{{ build_dir }}"
+    state: directory
+  when: modsec.stat.exists == False and cookieflag.stat.exists == False
+
+- name: Install source deb for nginx
+  ansible.builtin.shell:
+    cmd: apt-get source nginx
+    chdir: "{{ build_dir }}"
+  when: modsec.stat.exists == False and cookieflag.stat.exists == False
+
+- name: Finding nginx unpacked source
+  ansible.builtin.find:
+    paths: "{{ build_dir }}"
+    patterns: "nginx*"
+    file_type: directory
+  register: source_result
+  when: modsec.stat.exists == False and cookieflag.stat.exists == False
+
+#- debug:
+#msg: "{{ source_result }}"
+
+- name: Run configure for nginx ModSecurity module
+  ansible.builtin.shell: ./configure --add-dynamic-module=/tmp/ModSecurity-nginx --add-dynamic-module=/tmp/SetCookieFlag-nginx --with-cc-opt='-g -O2 -ffile-prefix-map=/build/nginx-AoTv4W/nginx-1.22.1=. -fstack-protector-strong -Wformat -Werror=format-security -fPIC -Wdate-time -D_FORTIFY_SOURCE=2' --with-ld-opt='-Wl,-z,relro -Wl,-z,now -fPIC' --prefix=/usr/share/nginx --conf-path=/etc/nginx/nginx.conf --http-log-path=/var/log/nginx/access.log --error-log-path=stderr --lock-path=/var/lock/nginx.lock --pid-path=/run/nginx.pid --modules-path=/usr/lib/nginx/modules --http-client-body-temp-path=/var/lib/nginx/body --http-fastcgi-temp-path=/var/lib/nginx/fastcgi --http-proxy-temp-path=/var/lib/nginx/proxy --http-scgi-temp-path=/var/lib/nginx/scgi --http-uwsgi-temp-path=/var/lib/nginx/uwsgi --with-compat --with-debug --with-pcre-jit --with-http_ssl_module --with-http_stub_status_module --with-http_realip_module --with-http_auth_request_module --with-http_v2_module --with-http_dav_module --with-http_slice_module --with-threads --with-http_addition_module --with-http_flv_module --with-http_gunzip_module --with-http_gzip_static_module --with-http_mp4_module --with-http_random_index_module --with-http_secure_link_module --with-http_sub_module --with-mail_ssl_module --with-stream_ssl_module --with-stream_ssl_preread_module --with-stream_realip_module --with-http_geoip_module=dynamic --with-http_image_filter_module=dynamic --with-http_perl_module=dynamic --with-http_xslt_module=dynamic --with-mail=dynamic --with-stream=dynamic --with-stream_geoip_module=dynamic
+  args:
+    chdir: "{{ source_item.path }}"
+  with_items: "{{ source_result.files }}"
+  loop_control:
+    loop_var: source_item
+  when: modsec.stat.exists == False and cookieflag.stat.exists == False
+
+- name: Run make modules for nginx ModSecurity module
+  ansible.builtin.shell: make modules
+  args:
+    chdir: "{{ source_item.path }}"
+  with_items: "{{ source_result.files }}"
+  loop_control:
+    loop_var: source_item
+  when: modsec.stat.exists == False and cookieflag.stat.exists == False
+
+- name: Create nginx modules conf directory
+  ansible.builtin.file:
+    name="/usr/share/nginx/modules/"
+    state=directory
+  when: modsec.stat.exists == False and cookieflag.stat.exists == False
+
+- name: Copy Nginx ModSecurity module to nginx module directory
+  ansible.builtin.copy:
+    src: "{{ source_item.path }}/objs/ngx_http_modsecurity_module.so"
+    dest: "/usr/share/nginx/modules/"
+    remote_src: yes
+  with_items: "{{ source_result.files }}"
+  loop_control:
+    loop_var: source_item
+  when: modsec.stat.exists == False
+
+- name: Copy Nginx ModSecurity module to nginx module directory
+  ansible.builtin.copy:
+    src: "{{ source_item.path }}/objs/ngx_http_cookie_flag_filter_module.so"
+    dest: "/usr/share/nginx/modules/"
+    remote_src: yes
+  with_items: "{{ source_result.files }}"
+  loop_control:
+    loop_var: source_item
+  when: cookieflag.stat.exists == False
+
+- name: Copy  unicode.mapping to modsec dir
+  ansible.builtin.copy:
+    src="/tmp/ModSecurity/unicode.mapping"
+    dest="/etc/nginx/modsec/unicode.mapping"
+    remote_src=yes
+  when: modsec.stat.exists == False
+
+- name: Load Nginx ModSecurity module
+  ansible.builtin.shell: echo "load_module modules/ngx_http_modsecurity_module.so;" > /etc/nginx/modules-available/ngx_http_modsecurity_module.conf
+  when: modsec.stat.exists == False
+
+- name: Load Nginx SetCookieFlag module
+  ansible.builtin.shell: echo "load_module modules/ngx_http_cookie_flag_filter_module.so;" > /etc/nginx/modules-available/ngx_http_cookie_flag_filter_module.conf
+  when: cookieflag.stat.exists == False
+
+- name: Link module modsec
+  ansible.builtin.file:
+    src: "/etc/nginx/modules-available/ngx_http_modsecurity_module.conf"
+    path: "/etc/nginx/modules-enabled/ngx_http_modsecurity_module.conf"
+    state: link
+  when: modsec.stat.exists == False
+
+- name: Link module modcookieflag
+  ansible.builtin.file:
+    src: "/etc/nginx/modules-available/ngx_http_cookie_flag_filter_module.conf"
+    path: "/etc/nginx/modules-enabled/ngx_http_cookie_flag_filter_module.conf"
+    state: link
+  when: cookieflag.stat.exists == False
+
+###########
+- name: Remove ModSecurityNginx repo
+  ansible.builtin.file:
+    name="/tmp/ModSecurity-nginx"
+    state=absent
+  when: modsec.stat.exists == False
+
+- name: Remove ModSecurity repo
+  ansible.builtin.file:
+    name="/tmp/ModSecurity"
+    state=absent
+  when: modsec.stat.exists == False
+
+- name: Remove SetCookieFlagNginx repo
+  ansible.builtin.file:
+    name="/tmp/SetCookieFlag-nginx"
+    state=absent
+  when: cookieflag.stat.exists == False
+
+- name: Remove build dir
+  ansible.builtin.file:
+    path: "{{ build_dir }}"
+    state: absent
+
+
+
+#- name: Create modsecurity.conf
+#  template:
+#    src="modsecurity.conf.j2"
+#    dest="/etc/nginx/modsec/modsecurity.conf"
+#  when: modsec.stat.exists == False
+
+#- name: Link owasp-crs.load
+#  file:
+#    src: "/usr/share/modsecurity-crs/owasp-crs.load"
+#    path: "/etc/nginx/conf.d/owasp-crs.load"
+#    state: link
+
+- name: Uninstall prereq. packages
+  ansible.builtin.apt:
+    name="{{ packages }}"
+    state=absent
+  vars:
+    packages:
+      - make
+      - git
+      - dpkg-dev
+      - libssl-dev
+      - zlib1g-dev
+      - libxslt1-dev
+      - libgd-dev
+      - libgeoip-dev
+      - libperl-dev
+  when: modsec.stat.exists == False
+
