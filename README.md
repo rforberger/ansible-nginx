@@ -13,10 +13,10 @@ nginx:
         - { hostname: "[::1]", port: "8080", protocol: "http" }
       listeners_http:
         - { ip: "{{ ansible_eth0.ipv4.address }}", port: '80' }
-        - { ip: "[{{ ansible_eth0.ipv6[0].address }}]", port: '80' }
+        - { ip6: "[{{ ansible_eth0.ipv6[0].address }}]", port: '80' }
       listeners_https:
         - { ip: "{{ ansible_eth0.ipv4.address }}", port: '443' }
-        - { ip: "[{{ ansible_eth0.ipv6[0].address }}]", port: '443' }
+        - { ip6: "[{{ ansible_eth0.ipv6[0].address }}]", port: '443' }
       certificate_name: "{{ letsencrypt_dir }}/groupware.forberger-online.de/fullchain.pem"
       key_name: "{{ letsencrypt_dir }}/groupware.forberger-online.de/privkey.pem"
       is_default_server: true
