@@ -11,7 +11,12 @@ upstream {{ item.name }}_target {
 server {
         # rewrite to Https
         {% for l_http in item.listeners_http %}
+        {% if l_http.ip is defined %}
         listen {{ l_http.ip }}:{{ l_http.port }} {% if item.is_default_server %}default_server{% endif %};
+        {% endif %}
+        {% if l_http.ip6 is defined %}
+        listen [{{ l_http.ip6 }}]:{{ l_http.port }} {% if item.is_default_server %}default_server{% endif %};
+        {% endif %}
         {% endfor %}
         server_name {{ item.name }}{% if item.custom_server_name_port == True %}:{{ item.listeners_http[0].port }}{% endif %};
         return 301 https://$server_name:{{ item.listeners_https[0].port }}$request_uri;
@@ -21,7 +26,12 @@ server {
 # HTTPS Proxy
 server {
     {% for l_https in item.listeners_https %}
+    {% if l_https.ip is defined %}
     listen {{ l_https.ip }}:{{ l_https.port }} {% if item.is_default_server %}default_server{% endif %} ssl http2;
+    {% endif %}
+    {% if l_https.ip6 is defined %}
+    listen [{{ l_https.ip6 }}]:{{ l_https.port }} {% if item.is_default_server %}default_server{% endif %} ssl http2;
+    {% endif %}
     {% endfor %}
 	server_name {{ item.name }}{% if item.custom_server_name_port == True %}:{{ item.listeners_https[0].port }}{% endif %};
 
@@ -98,7 +108,12 @@ server {
 server {
         # rewrite to Https
         {% for l_http in item.listeners_http %}
+        {% if l_http.ip is defined %}
         listen {{ l_http.ip }}:{{ l_http.port }} {% if item.is_default_server %}default_server{% endif %};
+        {% endif %}
+        {% if l_http.ip6 is defined %}
+        listen [{{ l_http.ip6 }}]:{{ l_http.port }} {% if item.is_default_server %}default_server{% endif %};
+        {% endif %}
         {% endfor %}
         server_name {{ item.name }}{% if item.custom_server_name_port == True %}:{{ item.listeners_http[0].port }}{% endif %};
         return 301 https://$server_name:{{ item.listeners_https[0].port }}$request_uri;
@@ -108,7 +123,12 @@ server {
 # HTTPS Service
 server {
     {% for l_https in item.listeners_https %}
+    {% if l_https.ip is defined %}
     listen {{ l_https.ip }}:{{ l_https.port }} {% if item.is_default_server %}default_server{% endif %} ssl http2;
+    {% endif %}
+    {% if l_https.ip6 is defined %}
+    listen [{{ l_https.ip6 }}]:{{ l_https.port }} {% if item.is_default_server %}default_server{% endif %} ssl http2;
+    {% endif %}
     {% endfor %}
 	server_name {{ item.name }}{% if item.custom_server_name_port == True %}:{{ item.listeners_https[0].port }}{% endif %};
 
