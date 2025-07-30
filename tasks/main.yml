@@ -156,3 +156,13 @@
     state: present
   when: item.mod_php == 'On' and ansible_os_family == "Debian"
   loop: "{{ nginx.virtual_hosts|flatten(levels=1) }}"
+
+- name: Enable NginX
+  community.general.sysrc:
+    name: nginx_enable
+    value: "YES"
+
+- name: Start NginX
+  ansible.builtin.service:
+    name: nginx
+    state: started
