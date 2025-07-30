@@ -23,3 +23,6 @@ galaxy_info:
     - name: Archlinux
       versions:
         - all
+    - name: FreeBSD
+      versions:
+        - all
