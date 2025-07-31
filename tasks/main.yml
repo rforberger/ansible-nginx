@@ -1,10 +1,24 @@
 ---
 
+- set_fact:
+    prefix: "/usr/local"
+  when: ansible_os_family == "FreeBSD"
+
+- set_fact:
+    prefix: ""
+  when: ansible_os_family == "Debian"
+
 - name: Install nginx
   ansible.builtin.apt:
     name="nginx-full"
     state=latest
   when: ansible_os_family == 'Debian'
+
+- name: Install nginx
+  community.general.pkgng:
+    name="nginx"
+    state=latest
+  when: ansible_os_family == 'FreeBSD'
 
 ##################################################################################
 
@@ -12,7 +26,11 @@
     group='root'
   when: ansible_system == 'Linux'
 
-- name: Create *-available directories
+- set_fact:
+    group='wheel'
+  when: ansible_system == 'FreeBSD'
+
+- name: Create site and module directories
   ansible.builtin.file:
     path={{ item }}
     state=directory
@@ -20,14 +38,16 @@
     owner=root
     group={{ group }}
   loop:
-    - /etc/nginx/sites-available
-    - /etc/nginx/sites-enabled
+    - "{{ prefix }}/etc/nginx/sites-available"
+    - "{{ prefix }}/etc/nginx/sites-enabled"
+    - "{{ prefix }}/etc/nginx/modules-available"
+    - "{{ prefix }}/etc/nginx/modules-enabled"
   notify:
     - Restart nginx
 
 - name: Create ssl directory
   ansible.builtin.file:
-    path="/etc/nginx/ssl"
+    path="{{ prefix }}/etc/nginx/ssl"
     state=directory
     mode=0755
     owner=root
@@ -56,7 +76,7 @@
 - name: Deploy virtual host
   ansible.builtin.template:
     src=nginx_virtual_host.conf.j2
-    dest="/etc/nginx/sites-available/{{ item.name }}.conf"
+    dest="{{ prefix }}/etc/nginx/sites-available/{{ item.name }}.conf"
     mode=0644
     owner=root
     group={{ group }}
@@ -66,8 +86,8 @@
 
 - name: Enable virtual host
   ansible.builtin.file:
-    src="/etc/nginx/sites-available/{{ item.name }}.conf"
-    dest="/etc/nginx/sites-enabled/{{ item.name }}.conf"
+    src="{{ prefix }}/etc/nginx/sites-available/{{ item.name }}.conf"
+    dest="{{ prefix }}/etc/nginx/sites-enabled/{{ item.name }}.conf"
     state=link
     group={{ group }}
   loop: "{{ nginx.virtual_hosts|flatten(levels=1) }}"
@@ -76,7 +96,7 @@
 
 - name: Disable default virtual host
   ansible.builtin.file:
-    path: "/etc/nginx/sites-enabled/default"
+    path: "{{ prefix }}/etc/nginx/sites-enabled/default"
     state: absent
   notify:
     - Restart nginx
@@ -85,27 +105,33 @@
   ansible.builtin.apt:
     name: "libnginx-mod-http-modsecurity"
     state: present
-  when: nginx.mod_security == True
+  when: nginx.mod_security == True and ansible_os_family == "Debian"
+
+- name: Install mod_security package
+  community.general.pkgng:
+    name: "modsecurity3-nginx"
+    state: present
+  when: nginx.mod_security == True and ansible_os_family == "FreeBSD"
 
 - name: Create modsec dir
   ansible.builtin.file:
-    name="/etc/nginx/modsec"
+    name="{{ prefix }}/etc/nginx/modsec"
     state=directory
   when: nginx.mod_security == True
 
 - name: Create modsec_include.load
   ansible.builtin.template:
     src=modsec_include.load.j2
-    dest="/etc/nginx/modsec/modsec_include.load"
+    dest="{{ prefix }}/etc/nginx/modsec/modsec_include.load"
   when: nginx.mod_security == True
 
-- include_tasks: "mod_security_compile.yml"
-  when: nginx.mod_security == True and nginx.mod_security_compile == True
+- include_tasks: "mod_security_compile_debian.yml"
+  when: nginx.mod_security == True and nginx.mod_security_compile == True and ansible_os_family == "Debian"
 
 - name: Install client certificate
   ansible.builtin.copy:
     src={{ item.client_certificate }}
-    dest=/etc/nginx/ssl/{{ item.client_certificate }}
+    dest={{ prefix }}/etc/nginx/ssl/{{ item.client_certificate }}
   loop: "{{ nginx.virtual_hosts|flatten(levels=1) }}"
   when: item.request_client_certificate == 'On'
   notify:
@@ -113,13 +139,13 @@
 
 - name: Write stream ssh proxy
   ansible.builtin.template:
-    dest: "/etc/nginx/modules-available/ssh-proxy.conf"
+    dest: "{{ prefix }}/etc/nginx/modules-available/ssh-proxy.conf"
     src: "nginx_stream_ssh.conf.j2"
 
 - name: a2enmod stream ssh proxy
   ansible.builtin.file:
-    src: "/etc/nginx/modules-available/ssh-proxy.conf"
-    path: "/etc/nginx/modules-enabled/ssh-proxy.conf"
+    src: "{{ prefix }}/etc/nginx/modules-available/ssh-proxy.conf"
+    path: "{{ prefix }}/etc/nginx/modules-enabled/ssh-proxy.conf"
     state: link
   notify:
     - Restart nginx
@@ -128,12 +154,15 @@
   ansible.builtin.apt:
     name: "php-fpm"
     state: present
-  when: item.mod_php == 'On'
+  when: item.mod_php == 'On' and ansible_os_family == "Debian"
   loop: "{{ nginx.virtual_hosts|flatten(levels=1) }}"
 
+- name: Enable NginX
+  community.general.sysrc:
+    name: nginx_enable
+    value: "YES"
 
-
-
-
-
-
+- name: Start NginX
+  ansible.builtin.service:
+    name: nginx
+    state: started

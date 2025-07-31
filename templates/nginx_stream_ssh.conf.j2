@@ -1,7 +1,7 @@
 {% if gitlab is defined and gitlab == True %}
 stream {
   server {
-    listen {{ ansible_br0.ipv4.address }}:22;
+    listen {{ ansible_vtnet0.ipv4.address }}:22;
     proxy_pass [::1]:8073;
     ssl_preread on;
   }

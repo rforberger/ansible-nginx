@@ -65,12 +65,12 @@ server {
 
     {% if item.request_client_certificate == 'On' %}
        ssl_verify_client on;
-       ssl_client_certificate /etc/nginx/ssl/{{ item.client_certificate }};
+       ssl_client_certificate {{ prefix }}/etc/nginx/ssl/{{ item.client_certificate }};
 	{% endif %}
 
     location / {
        {% if item.mod_security == 'On' %}
-          modsecurity_rules_file /etc/nginx/modsec/modsec_include.load;
+          modsecurity_rules_file {{ prefix }}/etc/nginx/modsec/modsec_include.load;
 	   {% endif %}
 		
 	   {% for item2 in item.target_servers %}
@@ -169,12 +169,12 @@ server {
 
     {% if item.request_client_certificate == 'On' %}
        ssl_verify_client on;
-       ssl_client_certificate /etc/nginx/ssl/{{ item.client_certificate }};
+       ssl_client_certificate {{ prefix }}/etc/nginx/ssl/{{ item.client_certificate }};
 	{% endif %}
 
     location / {
        {% if item.mod_security == 'On' %}
-          modsecurity_rules_file /etc/nginx/modsec/modsec_include.load;
+          modsecurity_rules_file {{ prefix }}/etc/nginx/modsec/modsec_include.load;
 	   {% endif %}
 	   {% if item.mod_php == 'On' %}
 	   try_files $uri $uri/ /index.php$is_args$args;
